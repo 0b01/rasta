@@ -1,0 +1,7 @@
+[package]
+name = "rasta"
+version = "0.1.0"
+authors = ["ricky han <rickylqhan@gmail.com>"]
+
+[dependencies]
+jack = "0.6"
