@@ -1,0 +1,27 @@
+<!DOCTYPE patchbay>
+<patchbay name="patchbay" version="0.4.2">
+ <output-sockets>
+  <socket name="rasta 1" client="rasta" exclusive="off" type="jack-audio">
+   <plug>rasta_out_l</plug>
+   <plug>rasta_out_r</plug>
+  </socket>
+  <socket name="system 1" client="system" exclusive="off" type="jack-audio">
+   <plug>capture_2</plug>
+  </socket>
+ </output-sockets>
+ <input-sockets>
+  <socket name="system 1" client="system" exclusive="off" type="jack-audio">
+   <plug>playback_1</plug>
+   <plug>playback_2</plug>
+  </socket>
+  <socket name="rasta 1" client="rasta" exclusive="off" type="jack-audio">
+   <plug>guitar_in</plug>
+  </socket>
+ </input-sockets>
+ <slots/>
+ <cables>
+  <cable input="system 1" type="jack-audio" output="rasta 1"/>
+  <cable input="rasta 1" type="jack-audio" output="system 1"/>
+ </cables>
+</patchbay>
+

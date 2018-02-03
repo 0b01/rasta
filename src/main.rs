@@ -1,73 +1,148 @@
-//! Sine wave generator with frequency configuration exposed through standard
-//! input.
+//! Takes 2 audio inputs and outputs them to 2 audio outputs.
+//! All JACK notifications are also printed out.
 extern crate jack;
 use std::io;
-use std::str::FromStr;
-use std::sync::mpsc::channel;
 
 fn main() {
-    // 1. open a client
+    // Create client
     let (client, _status) =
-        jack::Client::new("rust_jack_sine", jack::ClientOptions::NO_START_SERVER).unwrap();
+        jack::Client::new("rasta", jack::ClientOptions::NO_START_SERVER).unwrap();
 
-    // 2. register port
-    let mut out_port = client
-        .register_port("sine_out", jack::AudioOut::default())
+    // Register ports. They will be used in a callback that will be
+    // called when new data is available.
+
+    // let in_a = client
+    //     .register_port("rust_in_l", jack::AudioIn::default())
+    //     .unwrap();
+    let in_b = client
+        .register_port("guitar_in", jack::AudioIn::default())
         .unwrap();
+    let mut out_a = client
+        .register_port("rasta_out_l", jack::AudioOut::default())
+        .unwrap();
+    let mut out_b = client
+        .register_port("rasta_out_r", jack::AudioOut::default())
+        .unwrap();
+    let process_callback = move |_: &jack::Client, ps: &jack::ProcessScope| -> jack::Control {
 
-    // 3. define process callback handler
-    let mut frequency = 220.0;
-    let sample_rate = client.sample_rate();
-    let frame_t = 1.0 / sample_rate as f64;
-    let mut time = 0.0;
-    let (tx, rx) = channel();
-    let process = jack::ClosureProcessHandler::new(
-        move |_: &jack::Client, ps: &jack::ProcessScope| -> jack::Control {
-            // Get output buffer
-            let out = out_port.as_mut_slice(ps);
+        let out_a_p = out_a.as_mut_slice(ps);
+        let out_b_p = out_b.as_mut_slice(ps);
+        // let in_a_p = in_a.as_slice(ps);
+        let in_b_p = in_b.as_slice(ps);
+        out_a_p.clone_from_slice(&in_b_p);
+        out_b_p.clone_from_slice(&in_b_p);
+        jack::Control::Continue
+    };
+    let process = jack::ClosureProcessHandler::new(process_callback);
 
-            // Check frequency requests
-            while let Ok(f) = rx.try_recv() {
-                time = 0.0;
-                frequency = f;
-            }
+    // Activate the client, which starts the processing.
+    let active_client = client.activate_async(Notifications, process).unwrap();
 
-            // Write output
-            for v in out.iter_mut() {
-                let x = frequency * time * 2.0 * std::f64::consts::PI;
-                let y = x.sin();
-                *v = y as f32;
-                time += frame_t;
-            }
+    // Wait for user input to quit
+    println!("Press enter/return to quit...");
+    let mut user_input = String::new();
+    io::stdin().read_line(&mut user_input).ok();
 
-            // Continue as normal
-            jack::Control::Continue
-        },
-    );
-
-    // 4. activate the client
-    let active_client = client.activate_async((), process).unwrap();
-    // processing starts here
-
-    // 5. wait or do some processing while your handler is running in real time.
-    println!("Enter an integer value to change the frequency of the sine wave.");
-    while let Some(f) = read_freq() {
-        tx.send(f).unwrap();
-    }
-
-    // 6. Optional deactivate. Not required since active_client will deactivate on
-    // drop, though explicit deactivate may help you identify errors in
-    // deactivate.
     active_client.deactivate().unwrap();
 }
 
-/// Attempt to read a frequency from standard in. Will block until there is
-/// user input. `None` is returned if there was an error reading from standard
-/// in, or the retrieved string wasn't a compatible u16 integer.
-fn read_freq() -> Option<f64> {
-    let mut user_input = String::new();
-    match io::stdin().read_line(&mut user_input) {
-        Ok(_) => u16::from_str(&user_input.trim()).ok().map(|n| n as f64),
-        Err(_) => None,
+struct Notifications;
+
+impl jack::NotificationHandler for Notifications {
+    fn thread_init(&self, _: &jack::Client) {
+        println!("JACK: thread init");
+    }
+
+    fn shutdown(&mut self, status: jack::ClientStatus, reason: &str) {
+        println!(
+            "JACK: shutdown with status {:?} because \"{}\"",
+            status, reason
+        );
+    }
+
+    fn freewheel(&mut self, _: &jack::Client, is_enabled: bool) {
+        println!(
+            "JACK: freewheel mode is {}",
+            if is_enabled { "on" } else { "off" }
+        );
+    }
+
+    fn buffer_size(&mut self, _: &jack::Client, sz: jack::Frames) -> jack::Control {
+        println!("JACK: buffer size changed to {}", sz);
+        jack::Control::Continue
+    }
+
+    fn sample_rate(&mut self, _: &jack::Client, srate: jack::Frames) -> jack::Control {
+        println!("JACK: sample rate changed to {}", srate);
+        jack::Control::Continue
+    }
+
+    fn client_registration(&mut self, _: &jack::Client, name: &str, is_reg: bool) {
+        println!(
+            "JACK: {} client with name \"{}\"",
+            if is_reg { "registered" } else { "unregistered" },
+            name
+        );
+    }
+
+    fn port_registration(&mut self, _: &jack::Client, port_id: jack::PortId, is_reg: bool) {
+        println!(
+            "JACK: {} port with id {}",
+            if is_reg { "registered" } else { "unregistered" },
+            port_id
+        );
+    }
+
+    fn port_rename(
+        &mut self,
+        _: &jack::Client,
+        port_id: jack::PortId,
+        old_name: &str,
+        new_name: &str,
+    ) -> jack::Control {
+        println!(
+            "JACK: port with id {} renamed from {} to {}",
+            port_id, old_name, new_name
+        );
+        jack::Control::Continue
+    }
+
+    fn ports_connected(
+        &mut self,
+        _: &jack::Client,
+        port_id_a: jack::PortId,
+        port_id_b: jack::PortId,
+        are_connected: bool,
+    ) {
+        println!(
+            "JACK: ports with id {} and {} are {}",
+            port_id_a,
+            port_id_b,
+            if are_connected {
+                "connected"
+            } else {
+                "disconnected"
+            }
+        );
+    }
+
+    fn graph_reorder(&mut self, _: &jack::Client) -> jack::Control {
+        println!("JACK: graph reordered");
+        jack::Control::Continue
+    }
+
+    fn xrun(&mut self, _: &jack::Client) -> jack::Control {
+        println!("JACK: xrun occurred");
+        jack::Control::Continue
+    }
+
+    fn latency(&mut self, _: &jack::Client, mode: jack::LatencyType) {
+        println!(
+            "JACK: {} latency has changed",
+            match mode {
+                jack::LatencyType::Capture => "capture",
+                jack::LatencyType::Playback => "playback",
+            }
+        );
     }
 }
