@@ -1,6 +1,5 @@
-use std::slice;
-
 pub mod overdrive;
+pub mod delay;
 
 pub trait Effect : Send {
 
@@ -9,7 +8,7 @@ pub trait Effect : Send {
 
     fn name(&self) -> &'static str;
 
-    fn process_samples(&self, input: &[f32], output_l: &mut [f32], output_r: &mut [f32]) {
+    fn process_samples(&mut self, input: &[f32], output_l: &mut [f32], output_r: &mut [f32]) {
         output_l.clone_from_slice(input);
         output_r.clone_from_slice(input);
     }
@@ -44,7 +43,8 @@ impl Effect for EffectProcessor {
         "effects"
     }
 
-    fn process_samples(&self, input: &[f32], output_l: &mut [f32], output_r: &mut [f32]) {
+    fn process_samples(&mut self, input: &[f32], output_l: &mut [f32], output_r: &mut [f32]) {
+
         if self.bypassing {
             output_l.clone_from_slice(input);
             output_r.clone_from_slice(input);
@@ -52,7 +52,7 @@ impl Effect for EffectProcessor {
         }
 
         let mut is_first = true;
-        for eff in self.pedals.iter() {
+        for eff in self.pedals.iter_mut() {
             if is_first {
                 eff.process_samples(input, output_l, output_r);
                 is_first = false;

@@ -7,6 +7,7 @@ extern crate jack;
 
 mod notifications;
 mod effects;
+mod tuner;
 
 use effects::Effect;
 use std::io;
@@ -14,7 +15,7 @@ use jack::{Control, Client, ProcessScope};
 use notifications::Notifications;
 use std::sync::mpsc::channel;
 
-const SAMPLERATE: usize = 44100;
+const SAMPLERATE: usize = 48000;
 const FRAMES: usize = 128;
 
 fn main() {
@@ -34,7 +35,8 @@ fn main() {
         .unwrap();
 
     let mut pedals = effects::EffectProcessor::new();
-    pedals.add(box effects::overdrive::Overdrive::new());
+    // pedals.add(box effects::overdrive::Overdrive::new());
+    pedals.add(box effects::delay::Delay::new());
 
     let (tx, rx) = channel();
 
@@ -47,6 +49,8 @@ fn main() {
         if let Ok(msg) = rx.try_recv() {
             pedals.ctrl(msg);
         }
+
+        // tuner::Tuner::tune(in_b_p, 1./SAMPLERATE as f32);
 
         pedals.process_samples(in_b_p, &mut out_a_p, &mut out_b_p);
 

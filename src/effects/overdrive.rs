@@ -21,11 +21,12 @@ impl Effect for Overdrive {
         "overdrive"
     }
 
-    fn process_samples(&self, input: &[f32], output_l: &mut [f32], output_r: &mut [f32]) {
+    fn process_samples(&mut self, input: &[f32], output_l: &mut [f32], output_r: &mut [f32]) {
 
         if self.bypassing {
             output_l.clone_from_slice(input);
             output_r.clone_from_slice(input);
+            return;
         }
 
         let slice = input.iter().map(|&x| {
