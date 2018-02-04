@@ -1,15 +1,41 @@
+use super::super::SAMPLERATE;
+static TUNER_BUFFER_SIZE : usize = SAMPLERATE;
+
 extern crate rustfft;
+use effects::{CtrlMsg, Effect};
+use self::rustfft::FFTplanner;
+use self::rustfft::num_complex::Complex;
+use self::rustfft::num_traits::Zero;
 
-use tuner::rustfft::FFTplanner;
-use tuner::rustfft::num_complex::Complex;
-use tuner::rustfft::num_traits::Zero;
+pub struct Tuner {
+    tuner_buffer: Vec<f32>,
+    i_idx: usize,
+    bypassing: bool,
+}
 
-pub struct Tuner;
+pub fn calculate_spectrum(samples: &[f32]) -> Vec<f32> {
+    let mut input: Vec<Complex<f32>> = samples.iter()
+        .map(|&x| Complex::new(x, 0.0))
+        .collect();
+
+    let mut output: Vec<Complex<f32>> = vec![Complex::zero(); input.len()];
+
+    let mut planner = FFTplanner::new(false);
+    let fft = planner.plan_fft(input.len());
+    fft.process(&mut input, &mut output);
+
+    output.iter()
+        .map(|&c| c.norm_sqr())
+        .collect()
+}
 
 impl Tuner {
-    pub fn tune(input: &[f32], timestep: f32) -> Option<f32> {
+
+    pub fn tune(&self) -> Option<f32> {
+        let input = &self.tuner_buffer;
+
         let input_len = input.len();
-        let freqs = Self::calculate_spectrum(input);
+        let freqs = calculate_spectrum(input);
 
         let buckets: Vec<_> =
             (0 .. 1 + input_len / 2) // has Hermitian symmetry to f=0
@@ -17,7 +43,7 @@ impl Tuner {
                 let norm = freqs[i];
                 let noise_threshold = 1.0;
                 if norm > noise_threshold {
-                    let f = i as f32 / input_len as f32 * timestep;
+                    let f = i as f32 / input_len as f32 * SAMPLERATE as f32;
                     Some((f, norm))
                 } else {
                     None
@@ -41,27 +67,56 @@ impl Tuner {
         Some(max_f)
     }
 
-    pub fn calculate_spectrum(samples: &[f32]) -> Vec<f32> {
-        let mut input: Vec<Complex<f32>> = samples.iter()
-            .map(|&x| Complex::new(x, 0.0))
-            .collect();
 
-        let mut output: Vec<Complex<f32>> = vec![Complex::zero(); input.len()];
+}
 
-        let mut planner = FFTplanner::new(false);
-        let fft = planner.plan_fft(input.len());
-        fft.process(&mut input, &mut output);
+impl Effect for Tuner {
 
-        output.iter()
-            .map(|&c| c.norm_sqr())
-            .collect()
+    fn new() -> Self {
+        Self {
+            tuner_buffer: vec![0.; TUNER_BUFFER_SIZE],
+            i_idx: 0,
+            bypassing: true,
+        }
     }
+
+    fn name(&self) -> &'static str {
+        "tuner"
+    }
+
+    fn process_samples(&mut self, input: &[f32], _output_l: &mut [f32], _output_r: &mut [f32]) {
+        for bufptr in 0..input.len() {
+            if self.i_idx >= TUNER_BUFFER_SIZE {
+                self.i_idx = 0;
+            }
+            self.tuner_buffer[self.i_idx] = input[bufptr];
+            self.i_idx += 1;
+        }
+    }
+
+    fn bypass(&mut self) {
+        ()
+    }
+
+    fn is_bypassing(&self) -> bool {
+        self.bypassing
+    }
+
+    fn ctrl(&mut self, msg: CtrlMsg) {
+        use self::CtrlMsg::*;
+        match msg {
+            Bypass => self.bypass(),
+            _ => (),
+        }
+    }
+
 }
 
 #[cfg(test)]
 mod tests {
     use std::f32::consts::PI;
-    use super::Tuner;
+    use super::{calculate_spectrum, Tuner};
+    use effects::Effect;
 
     #[test]
     fn test_fft() {
@@ -71,7 +126,7 @@ mod tests {
 
         let sin_vec: Vec<f32> = (0..length).map(|i| (((i as f32 * freq * 420.0 * PI / length as f32 ).sin() * 0.5))).collect();
         // println!("sin_vec = {:?}", sin_vec);
-        let spectrum = Tuner::calculate_spectrum(sin_vec.as_slice());
+        let spectrum = calculate_spectrum(sin_vec.as_slice());
         let argmax = {
             let mut argmax = spectrum.iter()
                 .enumerate()
@@ -94,7 +149,7 @@ mod tests {
 
     #[test]
     fn test_tune() {
-        // okay... this has some "numerical stability" issues surround
+        // okay... this has some "numerical stability" issues surrounding
         // discret fourier transformation when sampling rate >> length of sample
         // there will only be 128 bins if one sample
         // contains 128 data points
@@ -111,7 +166,9 @@ mod tests {
                 ((2. * PI) * freq * t).sin() 
             }).collect();
 
-        let note = Tuner::tune(&sin_vec, sampling_rate);
+        let tuner = Tuner::new();
+        tuner.process_samples(&sin_vec, &mut vec![], &mut vec![]);
+        let note = tuner.tune();
 
         println!("NOTE : {:?}", note);
 

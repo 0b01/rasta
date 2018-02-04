@@ -22,6 +22,7 @@ impl Delay {
         self.feedback = f;
     }
 
+
 }
 
 impl Effect for Delay {
@@ -77,12 +78,16 @@ impl Effect for Delay {
         self.bypassing = !self.bypassing;
     }
 
+    fn is_bypassing(&self) -> bool {
+        self.bypassing
+    }
+
     fn ctrl(&mut self, msg: CtrlMsg) {
         use self::CtrlMsg::*;
         match msg {
             Bypass => self.bypass(),
+            _ => (),
         }
-
     }
 
 }

@@ -7,7 +7,6 @@ extern crate jack;
 
 mod notifications;
 mod effects;
-mod tuner;
 
 use effects::Effect;
 use std::io;
@@ -34,9 +33,10 @@ fn main() {
         .register_port("rasta_out_r", jack::AudioOut::default())
         .unwrap();
 
-    let mut pedals = effects::EffectProcessor::new();
+    let mut pedals = effects::EffectsBox::new();
     // pedals.add(box effects::overdrive::Overdrive::new());
-    pedals.add(box effects::delay::Delay::new());
+    // pedals.add(box effects::delay::Delay::new());
+    pedals.add("tuner", box effects::tuner::Tuner::new());
 
     let (tx, rx) = channel();
 
