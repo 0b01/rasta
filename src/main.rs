@@ -35,7 +35,7 @@ fn main() {
         .register_port("rasta_out_r", jack::AudioOut::default())
         .unwrap();
 
-    let mut pedals = effects::EffectsBox::new(sample_rate, frame_size);
+    let mut pedals = effects::Pedals::new(sample_rate, frame_size);
     pedals.add("overdrive", box effects::overdrive::Overdrive::new(sample_rate, frame_size));
     pedals.add("delay", box effects::delay::Delay::new(sample_rate, frame_size));
     pedals.add("tuner", box effects::tuner::Tuner::new(sample_rate, frame_size));

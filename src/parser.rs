@@ -3,6 +3,10 @@ use effects::CtrlMsg;
 pub fn parse_input(cmd: &str) -> CtrlMsg {
     use self::CtrlMsg::*;
 
+    if cmd == "t" {
+        Tuner
+    } else
+
     if cmd == "b" {
         Bypass
     } else
