@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 pub trait Effect : Send {
 
-    fn new() -> Self
+    fn new(sample_rate: usize, frame_size: u32) -> Self
         where Self: Sized;
 
     fn name(&self) -> &str;
@@ -25,6 +25,8 @@ pub trait Effect : Send {
 }
 
 pub struct EffectsBox {
+    sample_rate: usize,
+    frame_size: u32,
     pub pedals: HashMap<String, Box<Effect>>,
     pub bypassing: bool,
     /// in -> eff1 -> eff2 -> out
@@ -33,8 +35,10 @@ pub struct EffectsBox {
 
 impl Effect for EffectsBox {
 
-    fn new() -> Self {
+    fn new(sample_rate: usize, frame_size: u32) -> Self {
         EffectsBox {
+            sample_rate,
+            frame_size,
             pedals: HashMap::new(),
             bypassing: false,
             chain: HashMap::new(),
@@ -118,8 +122,8 @@ impl Effect for EffectsBox {
             Connections => self.print_conn(),
             Add(name, eff_type) => {
                 let eff : Box<Effect> = match eff_type.as_str() {
-                    "delay" => box delay::Delay::new(),
-                    "overdrive" => box overdrive::Overdrive::new(),
+                    "delay" => box delay::Delay::new(self.sample_rate, self.frame_size),
+                    "overdrive" => box overdrive::Overdrive::new(self.sample_rate, self.frame_size),
                     &_ => unimplemented!()
                 };
                 self.add(&name, eff);

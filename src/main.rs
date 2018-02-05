@@ -11,18 +11,18 @@ mod parser;
 
 use parser::parse_input;
 use effects::{Effect};
-use std::io;
+use std::io::{self, Write};
 use jack::{Control, Client, ProcessScope};
 use notifications::Notifications;
 use std::sync::mpsc::channel;
-
-const SAMPLERATE: usize = 48000;
-const FRAMES: usize = 128;
 
 fn main() {
     // Create client
     let (client, _status) =
         jack::Client::new("rasta", jack::ClientOptions::NO_START_SERVER).unwrap();
+    
+    let sample_rate = client.sample_rate();
+    let frame_size = client.buffer_size();
 
     // Create ports
     let in_b = client
@@ -35,10 +35,10 @@ fn main() {
         .register_port("rasta_out_r", jack::AudioOut::default())
         .unwrap();
 
-    let mut pedals = effects::EffectsBox::new();
-    pedals.add("overdrive", box effects::overdrive::Overdrive::new());
-    pedals.add("delay", box effects::delay::Delay::new());
-    pedals.add("tuner", box effects::tuner::Tuner::new());
+    let mut pedals = effects::EffectsBox::new(sample_rate, frame_size);
+    pedals.add("overdrive", box effects::overdrive::Overdrive::new(sample_rate, frame_size));
+    pedals.add("delay", box effects::delay::Delay::new(sample_rate, frame_size));
+    pedals.add("tuner", box effects::tuner::Tuner::new(sample_rate, frame_size));
 
     let (tx, rx) = channel();
 
@@ -60,10 +60,14 @@ fn main() {
 
     // Wait for user input to quit
     let mut user_input = String::new();
+    print!(">>> ");
+    io::stdout().flush().ok().expect("Could not flush stdout");
     while let Ok(_) = io::stdin().read_line(&mut user_input) {
         let msg = parse_input(&user_input[0..user_input.len()-1]);
         tx.send(msg).unwrap();
         user_input.clear();
+        print!(">>> ");
+        io::stdout().flush().ok().expect("Could not flush stdout");
     }
 
     active_client.deactivate().unwrap();

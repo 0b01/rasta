@@ -11,7 +11,7 @@ pub struct Overdrive {
 /// be performed.
 impl Effect for Overdrive {
 
-    fn new() -> Self {
+    fn new(sample_rate: usize, frame_size: u32) -> Self {
         Overdrive {
             bypassing: false
         }

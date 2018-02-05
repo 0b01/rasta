@@ -2,9 +2,12 @@ use effects::CtrlMsg;
 
 pub fn parse_input(cmd: &str) -> CtrlMsg {
     use self::CtrlMsg::*;
+
     if cmd == "b" {
         Bypass
-    } else if cmd.starts_with("b") {
+    } else
+
+    if cmd.starts_with("b") {
         let tokens = cmd[2..]
             .split(" ")
             .collect::<Vec<&str>>();
@@ -13,9 +16,24 @@ pub fn parse_input(cmd: &str) -> CtrlMsg {
             chain.push(BypassPedal(token.to_owned()));
         }
         Chain(chain)
-    } else if cmd == "p" {
+    } else
+
+    if cmd == "p" {
         Connections
-    } else if cmd.starts_with("c") {
+    } else
+
+    if cmd.starts_with("d") {
+        let tokens = cmd[2..]
+            .split(" ")
+            .collect::<Vec<&str>>();
+        let mut chain = vec![];
+        for a in tokens.into_iter() {
+            chain.push(Disconnect(a.to_owned()));
+        }
+        Chain(chain)
+    } else
+    
+    if cmd.starts_with("c") {
         // allow daisy chaining:
         // c in delay overdrive out
         let tokens = cmd[2..]
@@ -31,7 +49,9 @@ pub fn parse_input(cmd: &str) -> CtrlMsg {
         }
 
         Chain(chain)
-    } else if cmd.starts_with("a") {
+    } else
+    
+    if cmd.starts_with("a") {
         let tokens = cmd.split(" ").collect::<Vec<&str>>();
         let name = tokens[1].to_owned();
         let eff_type = tokens[2].to_owned();

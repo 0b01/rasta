@@ -1,15 +1,15 @@
 use effects::{Effect, CtrlMsg};
-use super::super::{SAMPLERATE, FRAMES};
-
-static DELAY_BUFFER_SIZE : usize = SAMPLERATE;
 
 pub struct Delay {
     pub bypassing: bool,
     delay_buffer: Vec<f32>,
+    delay_buffer_size: usize,
     feedback: f32,
     i_idx: usize,
     o_idx: usize,
     delay_time: usize,
+    sample_rate: usize,
+    frame_size: u32,
 }
 
 impl Delay {
@@ -27,14 +27,18 @@ impl Delay {
 
 impl Effect for Delay {
 
-    fn new() -> Self {
+    fn new(sample_rate: usize, frame_size: u32) -> Self {
+        let dbs = sample_rate;
         Delay {
             bypassing: false,
-            delay_buffer: vec![0.; DELAY_BUFFER_SIZE],
+            delay_buffer_size: dbs,
+            delay_buffer: vec![0.; dbs],
             feedback: 0.5,
             i_idx: 0,
             o_idx: 0,
             delay_time: 5000,
+            sample_rate,
+            frame_size
         }
     }
 
@@ -50,15 +54,15 @@ impl Effect for Delay {
             return;
         }
 
-        for bufptr in 0..FRAMES {
-            if self.i_idx >= DELAY_BUFFER_SIZE {
+        for bufptr in 0..self.frame_size as usize {
+            if self.i_idx >= self.delay_buffer_size {
                 self.i_idx = 0;
             }
             
             self.o_idx = if self.i_idx >= self.delay_time {
                 self.i_idx - self.delay_time
             } else {
-                DELAY_BUFFER_SIZE + self.i_idx - self.delay_time
+                self.delay_buffer_size as usize + self.i_idx - self.delay_time
             };
             
             self.delay_buffer[self.i_idx] = input[bufptr] + (self.delay_buffer[self.o_idx] * self.feedback);

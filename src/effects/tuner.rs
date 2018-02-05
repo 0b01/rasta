@@ -1,4 +1,3 @@
-use super::super::{FRAMES, SAMPLERATE};
 static TUNER_BUFFER_SIZE : usize = 10240;
 
 use std::time::Instant;
@@ -14,6 +13,8 @@ pub struct Tuner {
     tuner_buffer: Vec<f32>,
     i_idx: usize,
     bypassing: bool,
+    sample_rate: usize,
+    frame_size: u32,
 }
 
 pub fn calculate_spectrum(samples: &[f32]) -> Vec<f32> {
@@ -36,7 +37,7 @@ pub fn calculate_spectrum(samples: &[f32]) -> Vec<f32> {
         .collect()
 }
 
-pub fn tune(input: &[f32]) -> Option<f32> {
+pub fn tune(input: &[f32], sample_rate: usize) -> Option<f32> {
 
     let input_len = input.len();
     let freqs = calculate_spectrum(input);
@@ -47,7 +48,7 @@ pub fn tune(input: &[f32]) -> Option<f32> {
             let norm = freqs[i];
             let noise_threshold = 1.0;
             if norm > noise_threshold {
-                let f = i as f32 / input_len as f32 * SAMPLERATE as f32;
+                let f = i as f32 / input_len as f32 * sample_rate as f32;
                 Some((f, norm))
             } else {
                 None
@@ -73,11 +74,13 @@ pub fn tune(input: &[f32]) -> Option<f32> {
 
 impl Effect for Tuner {
 
-    fn new() -> Self {
+    fn new(sample_rate: usize, frame_size: u32) -> Self {
         Self {
             tuner_buffer: vec![0.; TUNER_BUFFER_SIZE],
             i_idx: 0,
             bypassing: true,
+            sample_rate,
+            frame_size
         }
     }
 
@@ -87,7 +90,7 @@ impl Effect for Tuner {
 
     fn process_samples(&mut self, input: &[f32], output_l: &mut [f32], output_r: &mut [f32]) {
 
-        for bufptr in 0..FRAMES {
+        for bufptr in 0..self.frame_size as usize {
             if self.i_idx >= TUNER_BUFFER_SIZE {
                 self.i_idx = 0;
             }
@@ -114,8 +117,9 @@ impl Effect for Tuner {
             Bypass => self.bypass(),
             Tuner => {
                 let input = self.tuner_buffer.to_owned();
+                let sample_rate = self.sample_rate;
                 thread::spawn(move || {
-                    tune(&input);
+                    tune(&input, sample_rate);
                 });
             },
             _ => (),
