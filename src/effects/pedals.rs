@@ -104,6 +104,7 @@ impl Effect for Pedals {
                     "delay" =>      box delay::Delay::new(self.sample_rate, self.frame_size),
                     "overdrive" =>  box overdrive::Overdrive::new(self.sample_rate, self.frame_size),
                     "tuner" =>      box tuner::Tuner::new(self.sample_rate, self.frame_size),
+                    "autowah" =>    box autowah::AutoWah::new(self.sample_rate, self.frame_size),
                     &_ => unimplemented!()
                 };
                 self.add(&name, eff);

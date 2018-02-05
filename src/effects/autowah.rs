@@ -63,6 +63,7 @@ impl Effect for AutoWah {
         let mut aw = AutoWah {
             bypassing: false,
             sample_rate: sample_rate as f32,
+            frame_size,
             ..Default::default()
         };
 
@@ -70,7 +71,7 @@ impl Effect for AutoWah {
         aw.set_release(0.002);
         aw.set_min_maxFreq(20., 3000.);
         aw.set_quality_factor(1. / 5.);
-        aw.set_mixing(1.);
+        aw.set_mixing(0.8);
 
         aw
     }
@@ -81,10 +82,13 @@ impl Effect for AutoWah {
 
     fn process_samples(&mut self, input: &[f32], output_l: &mut [f32], output_r: &mut [f32]) {
         for i in 0..self.frame_size as usize {
-            let x = input[i];
-            let y = self.run_effect(x);
+            let x = input[i] * 1.;
+            let mut y = self.run_effect(x) * 2.;
 
             //TODO: saturation
+            if y > 1. {y = 1.;}
+            else if y < -1. {y = -1.;}
+
             output_l[i] = y;
             output_r[i] = y;
         }
@@ -183,7 +187,7 @@ impl AutoWah {
         }
     }
     fn mixer(&self, x: f32, y: f32) -> f32 {
-        self.alphaMix * y * self.betaMix * x
+        self.alphaMix * y + self.betaMix * x
     }
 }
 
@@ -195,6 +199,6 @@ enum FilterType {
 
 impl Default for FilterType {
     fn default() -> Self {
-        FilterType::Bandpass
+        FilterType::Highpass
     }
 }

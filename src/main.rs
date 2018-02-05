@@ -39,6 +39,7 @@ fn main() {
     pedals.add("overdrive", box effects::overdrive::Overdrive::new(sample_rate, frame_size));
     pedals.add("delay", box effects::delay::Delay::new(sample_rate, frame_size));
     pedals.add("tuner", box effects::tuner::Tuner::new(sample_rate, frame_size));
+    pedals.add("aw", box effects::autowah::AutoWah::new(sample_rate, frame_size));
 
     let (tx, rx) = channel();
 
