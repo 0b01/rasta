@@ -32,6 +32,17 @@ pub fn parse_input(cmd: &str) -> CtrlMsg {
         }
         Chain(chain)
     } else
+
+    if cmd.starts_with("s") {
+        let tokens = cmd[2..]
+            .split(" ")
+            .collect::<Vec<&str>>();
+        let pedal_name = tokens[0].to_owned();
+        let conf_name = tokens[1].to_owned();
+        let val = tokens[2].parse::<f32>().unwrap();
+        Set(pedal_name, conf_name, val)
+
+    } else
     
     if cmd.starts_with("c") {
         // allow daisy chaining:

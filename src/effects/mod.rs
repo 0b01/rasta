@@ -128,6 +128,10 @@ impl Effect for EffectsBox {
                 };
                 self.add(&name, eff);
             },
+            Set(name, conf, val) => {
+                let mut pedal = self.pedals.get_mut(&name).unwrap();
+                (*pedal).ctrl(Set(name, conf, val));
+            },
             Chain(v) => {
                 for i in v.into_iter() {
                     self.ctrl(i);
@@ -178,4 +182,5 @@ pub enum CtrlMsg {
     Disconnect(String),
     Connections,
     Add(String, String),
+    Set(String/*pedal*/, String/*confname*/, f32/*val*/),
 }

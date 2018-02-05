@@ -7,15 +7,16 @@ pub struct Delay {
     feedback: f32,
     i_idx: usize,
     o_idx: usize,
-    delay_time: usize,
     sample_rate: usize,
+    delay_time: usize,
     frame_size: u32,
 }
 
 impl Delay {
 
-    pub fn set_delay(&mut self, t: usize) {
-        self.delay_time = t;
+    /// t is in seconds
+    pub fn set_delay(&mut self, t: f32) {
+        self.delay_time = (t * self.sample_rate as f32) as usize;
     }
 
     pub fn set_feedback(&mut self, f: f32) {
@@ -33,10 +34,10 @@ impl Effect for Delay {
             bypassing: false,
             delay_buffer_size: dbs,
             delay_buffer: vec![0.; dbs],
-            feedback: 0.5,
+            feedback: 0.3,
             i_idx: 0,
             o_idx: 0,
-            delay_time: 5000,
+            delay_time: 8820,
             sample_rate,
             frame_size
         }
@@ -90,6 +91,13 @@ impl Effect for Delay {
         use self::CtrlMsg::*;
         match msg {
             Bypass => self.bypass(),
+            Set(_pedal_name, conf_name, val) => {
+                if &conf_name == "feedback" {
+                    self.set_feedback(val);
+                } else if &conf_name == "delay" {
+                    self.set_delay(val);
+                }
+            },
             _ => (),
         }
     }
