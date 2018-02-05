@@ -101,12 +101,20 @@ impl Effect for EffectsBox {
         use self::CtrlMsg::*;
         match msg {
             Bypass => self.bypass(),
+            BypassPedal(name) => {
+                let mut pedal = self.pedals.get_mut(&name).unwrap();
+                (*pedal).ctrl(Bypass);
+            }
             Tuner => {
                 let mut tuner = self.pedals.get_mut("tuner").unwrap();
                 (*tuner).ctrl(msg);
             },
-            Connect(from, to) => {self.connect(&from, &to)},
-            Disconnect(from) => { self.disconnect(&from) },
+            Connect(from, to) => {
+                self.connect(&from, &to)
+            },
+            Disconnect(from) => {
+                self.disconnect(&from)
+            },
             Connections => self.print_conn(),
             Add(name, eff_type) => {
                 let eff : Box<Effect> = match eff_type.as_str() {
@@ -115,6 +123,11 @@ impl Effect for EffectsBox {
                     &_ => unimplemented!()
                 };
                 self.add(&name, eff);
+            },
+            Chain(v) => {
+                for i in v.into_iter() {
+                    self.ctrl(i);
+                }
             }
         }
     }
@@ -154,8 +167,10 @@ impl EffectsBox {
 
 pub enum CtrlMsg {
     Bypass,
+    BypassPedal(String),
     Tuner,
     Connect(String, String), 
+    Chain(Vec<CtrlMsg>),
     Disconnect(String),
     Connections,
     Add(String, String),
