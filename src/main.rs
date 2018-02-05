@@ -8,7 +8,7 @@ extern crate jack;
 mod notifications;
 mod effects;
 
-use effects::Effect;
+use effects::{Effect, CtrlMsg};
 use std::io;
 use jack::{Control, Client, ProcessScope};
 use notifications::Notifications;
@@ -34,9 +34,19 @@ fn main() {
         .unwrap();
 
     let mut pedals = effects::EffectsBox::new();
-    // pedals.add(box effects::overdrive::Overdrive::new());
-    // pedals.add(box effects::delay::Delay::new());
+    pedals.add("overdrive", box effects::overdrive::Overdrive::new());
+    pedals.add("delay", box effects::delay::Delay::new());
     pedals.add("tuner", box effects::tuner::Tuner::new());
+
+    // pedals.connect("in", "tuner");
+    // pedals.connect("tuner", "out");
+
+    // pedals.connect("in", "out");
+
+    // pedals.connect("in", "tuner");
+    // pedals.connect("tuner", "overdrive");
+    // pedals.connect("overdrive", "delay");
+    // pedals.connect("delay", "out");
 
     let (tx, rx) = channel();
 
@@ -49,13 +59,8 @@ fn main() {
         if let Ok(msg) = rx.try_recv() {
             pedals.ctrl(msg);
         }
-
-        // tuner::Tuner::tune(in_b_p, 1./SAMPLERATE as f32);
-
         pedals.process_samples(in_b_p, &mut out_a_p, &mut out_b_p);
-
         Control::Continue
-
     };
 
     let process = jack::ClosureProcessHandler::new(process_callback);
@@ -65,8 +70,34 @@ fn main() {
     println!("Press enter/return to toggle bypass...");
     let mut user_input = String::new();
     while let Ok(_) = io::stdin().read_line(&mut user_input) {
-        tx.send(effects::CtrlMsg::Bypass).unwrap();
+        let msg = parse_input(&user_input[0..user_input.len()-1]);
+        tx.send(msg).unwrap();
+        user_input.clear();
     }
 
     active_client.deactivate().unwrap();
+}
+
+fn parse_input(cmd: &str) -> CtrlMsg {
+    use CtrlMsg::*;
+    if cmd == "b" {
+        Bypass
+    } else if cmd == "p" {
+        Connections
+    } else if cmd.starts_with("c") {
+        let tokens = cmd.split(" ").collect::<Vec<&str>>();
+        let inp = tokens[1].to_owned();
+        let outp = tokens[2].to_owned();
+
+        Connect(inp, outp)
+    } else if cmd.starts_with("a") {
+        let tokens = cmd.split(" ").collect::<Vec<&str>>();
+        let name = tokens[1].to_owned();
+        let eff_type = tokens[2].to_owned();
+
+        Add(name, eff_type)
+
+    } else {
+        Bypass
+    }
 }

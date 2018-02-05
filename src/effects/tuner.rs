@@ -1,5 +1,8 @@
-use super::super::SAMPLERATE;
-static TUNER_BUFFER_SIZE : usize = SAMPLERATE;
+use super::super::{FRAMES, SAMPLERATE};
+static TUNER_BUFFER_SIZE : usize = 10240;
+
+use std::time::Instant;
+use std::thread;
 
 extern crate rustfft;
 use effects::{CtrlMsg, Effect};
@@ -14,6 +17,8 @@ pub struct Tuner {
 }
 
 pub fn calculate_spectrum(samples: &[f32]) -> Vec<f32> {
+    let now = Instant::now();
+
     let mut input: Vec<Complex<f32>> = samples.iter()
         .map(|&x| Complex::new(x, 0.0))
         .collect();
@@ -24,50 +29,46 @@ pub fn calculate_spectrum(samples: &[f32]) -> Vec<f32> {
     let fft = planner.plan_fft(input.len());
     fft.process(&mut input, &mut output);
 
+    println!("{:?}", now.elapsed());
+
     output.iter()
         .map(|&c| c.norm_sqr())
         .collect()
 }
 
-impl Tuner {
+pub fn tune(input: &[f32]) -> Option<f32> {
 
-    pub fn tune(&self) -> Option<f32> {
-        let input = &self.tuner_buffer;
+    let input_len = input.len();
+    let freqs = calculate_spectrum(input);
 
-        let input_len = input.len();
-        let freqs = calculate_spectrum(input);
+    let buckets: Vec<_> =
+        (0 .. 1 + input_len / 2) // has Hermitian symmetry to f=0
+        .filter_map(|i| {
+            let norm = freqs[i];
+            let noise_threshold = 1.0;
+            if norm > noise_threshold {
+                let f = i as f32 / input_len as f32 * SAMPLERATE as f32;
+                Some((f, norm))
+            } else {
+                None
+            }
+        })
+        .collect();
 
-        let buckets: Vec<_> =
-            (0 .. 1 + input_len / 2) // has Hermitian symmetry to f=0
-            .filter_map(|i| {
-                let norm = freqs[i];
-                let noise_threshold = 1.0;
-                if norm > noise_threshold {
-                    let f = i as f32 / input_len as f32 * SAMPLERATE as f32;
-                    Some((f, norm))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        if buckets.is_empty() {
-            return None
-        }
-
-        let &(max_f, _max_val) =
-            buckets.iter()
-            .max_by(|&&(_f1, ref val1), &&(_f2, ref val2)| val1.partial_cmp(val2).unwrap())
-            .unwrap();
-
-
-        println!("Max index is {}", max_f);
-        // println!("Max value is {}", max_val);
-
-        Some(max_f)
+    if buckets.is_empty() {
+        return None
     }
 
+    let &(max_f, _max_val) =
+        buckets.iter()
+        .max_by(|&&(_f1, ref val1), &&(_f2, ref val2)| val1.partial_cmp(val2).unwrap())
+        .unwrap();
 
+
+    println!("Max index is {}", max_f);
+    // println!("Max value is {}", max_val);
+
+    Some(max_f)
 }
 
 impl Effect for Tuner {
@@ -80,18 +81,23 @@ impl Effect for Tuner {
         }
     }
 
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "tuner"
     }
 
-    fn process_samples(&mut self, input: &[f32], _output_l: &mut [f32], _output_r: &mut [f32]) {
-        for bufptr in 0..input.len() {
+    fn process_samples(&mut self, input: &[f32], output_l: &mut [f32], output_r: &mut [f32]) {
+
+        for bufptr in 0..FRAMES {
             if self.i_idx >= TUNER_BUFFER_SIZE {
                 self.i_idx = 0;
             }
             self.tuner_buffer[self.i_idx] = input[bufptr];
             self.i_idx += 1;
+
+            output_l[bufptr] = input[bufptr];
+            output_r[bufptr] = input[bufptr];
         }
+
     }
 
     fn bypass(&mut self) {
@@ -106,6 +112,12 @@ impl Effect for Tuner {
         use self::CtrlMsg::*;
         match msg {
             Bypass => self.bypass(),
+            Tuner => {
+                let input = self.tuner_buffer.to_owned();
+                thread::spawn(move || {
+                    tune(&input);
+                });
+            },
             _ => (),
         }
     }

@@ -9,7 +9,7 @@ pub trait Effect : Send {
     fn new() -> Self
         where Self: Sized;
 
-    fn name(&self) -> &'static str;
+    fn name(&self) -> &str;
 
     fn process_samples(&mut self, input: &[f32], output_l: &mut [f32], output_r: &mut [f32]) {
         output_l.clone_from_slice(input);
@@ -25,10 +25,10 @@ pub trait Effect : Send {
 }
 
 pub struct EffectsBox {
-    pub pedals: HashMap<&'static str, Box<Effect>>,
+    pub pedals: HashMap<String, Box<Effect>>,
     pub bypassing: bool,
     /// in -> eff1 -> eff2 -> out
-    chain: HashMap<&'static str, &'static str>,
+    chain: HashMap<String, String>,
 }
 
 impl Effect for EffectsBox {
@@ -41,7 +41,7 @@ impl Effect for EffectsBox {
         }
     }
 
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "effects"
     }
 
@@ -53,24 +53,38 @@ impl Effect for EffectsBox {
             return;
         }
 
-        let mut is_first = true;
-        let mut next_node = self.chain.get("in").unwrap();
+        let mut next_node = self.chain.get("in");
+        let mut next_node = if next_node.is_none() {
+            return;
+        } else {
+            next_node.unwrap()
+        };
 
-        while next_node != &"out" {
-            let eff = self.pedals.get_mut(next_node).unwrap();
-            if eff.is_bypassing() {
-                continue;
-            }
-            if is_first {
-                eff.process_samples(input, output_l, output_r);
-                is_first = false;
+        let mut temp_buf = input.to_owned();
+
+        while *next_node != "out" {
+            let eff = self.pedals.get_mut(next_node);
+            let eff = if eff.is_none() {
+                break
             } else {
-                let inp = output_l.to_owned();
-                eff.process_samples(&inp, output_l, output_r);
-            }
+                eff.unwrap()
+            };
+            // if eff.is_bypassing() { continue; }
 
-            next_node = self.chain.get(next_node).unwrap();
+            eff.process_samples(&temp_buf, output_l, output_r);
+            temp_buf = output_l.to_owned();
+
+            let next = self.chain.get(next_node);
+
+            next_node = if next.is_none() {
+                break
+            } else {
+                next.unwrap()
+            };
         }
+
+        output_l.clone_from_slice(&temp_buf);
+        output_r.clone_from_slice(&temp_buf);
 
     }
 
@@ -87,7 +101,21 @@ impl Effect for EffectsBox {
         use self::CtrlMsg::*;
         match msg {
             Bypass => self.bypass(),
-            Tuner => (*self.pedals.get_mut("tuner").unwrap()).ctrl(msg)
+            Tuner => {
+                let mut tuner = self.pedals.get_mut("tuner").unwrap();
+                (*tuner).ctrl(msg);
+            },
+            Connect(from, to) => {self.connect(&from, &to)},
+            Disconnect(from) => { self.disconnect(&from) },
+            Connections => self.print_conn(),
+            Add(name, eff_type) => {
+                let eff : Box<Effect> = match eff_type.as_str() {
+                    "delay" => box delay::Delay::new(),
+                    "overdrive" => box overdrive::Overdrive::new(),
+                    &_ => unimplemented!()
+                };
+                self.add(&name, eff);
+            }
         }
     }
 
@@ -95,12 +123,31 @@ impl Effect for EffectsBox {
 
 impl EffectsBox {
 
-    pub fn add(&mut self, name: &'static str, eff: Box<Effect>) {
-        self.pedals.insert(name, eff);
+    pub fn add(&mut self, name: &str, eff: Box<Effect>) {
+        self.pedals.insert(name.to_owned(), eff);
     }
 
-    pub fn connect(&mut self, from: &'static str, to: &'static str) {
-        self.chain.insert(from, to).unwrap();
+    pub fn connect(&mut self, from: &str, to: &str) {
+        self.chain.insert(from.to_owned(), to.to_owned());
+    }
+
+    pub fn disconnect(&mut self, from: &str) {
+        self.chain.remove(from);
+    }
+
+    pub fn print_conn(&self) {
+
+        print!("Chain: ");
+        let mut node = "in";
+        while node != "out" && self.chain.contains_key(node) {
+            print!("{} -> ", node);
+            node = self.chain.get(node).unwrap();
+        }
+        println!("out");
+
+        println!("Graph: {:?}", self.chain);
+
+        println!("Pedals: {:?}", self.pedals.keys().collect::<Vec<_>>())
     }
 
 }
@@ -108,4 +155,8 @@ impl EffectsBox {
 pub enum CtrlMsg {
     Bypass,
     Tuner,
+    Connect(String, String), 
+    Disconnect(String),
+    Connections,
+    Add(String, String),
 }
