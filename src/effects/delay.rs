@@ -16,10 +16,13 @@ impl Delay {
 
     /// t is in seconds
     pub fn set_delay(&mut self, t: f32) {
-        self.delay_time = (t * self.sample_rate as f32) as usize;
+        let delay_time = (t * self.sample_rate as f32) as usize;
+        assert!(delay_time < self.delay_buffer_size);
+        self.delay_time = delay_time;
     }
 
     pub fn set_feedback(&mut self, f: f32) {
+        assert!(f < 1.); // multiplying by > 1 would be too loud
         self.feedback = f;
     }
 
@@ -65,9 +68,10 @@ impl Effect for Delay {
             } else {
                 self.delay_buffer_size as usize + self.i_idx - self.delay_time
             };
-            
-            self.delay_buffer[self.i_idx] = input[bufptr] + (self.delay_buffer[self.o_idx] * self.feedback);
-            let out = (self.delay_buffer[self.i_idx] + 0.5).cos();
+
+            let y = input[bufptr] + (self.delay_buffer[self.o_idx] * self.feedback);
+            self.delay_buffer[self.i_idx] = y;
+            let out = (y + 0.5).cos();
 
             output_r[bufptr] = out;
             output_l[bufptr] = out;

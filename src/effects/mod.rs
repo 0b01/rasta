@@ -5,9 +5,9 @@ pub mod tuner;
 pub mod pedals;
 pub use self::pedals::Pedals;
 
-pub trait Effect : Send {
+pub trait Effect: Send {
     fn new(sample_rate: usize, frame_size: u32) -> Self
-        where Self: Sized;
+      where Self: Sized;
 
     fn name(&self) -> &str;
 
