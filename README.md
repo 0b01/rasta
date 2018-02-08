@@ -1,4 +1,4 @@
-# rustaman
+# Rasta
 
 Guitar/bass effect unit.
 
