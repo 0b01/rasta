@@ -2,6 +2,7 @@ pub mod overdrive;
 pub mod delay;
 pub mod autowah;
 pub mod tuner;
+pub mod tremelo;
 pub mod pedals;
 pub use self::pedals::Pedals;
 
@@ -24,15 +25,18 @@ pub trait Effect: Send {
 
 }
 
+type PedalName = String;
+type ConfName = String;
+type Val = f32;
 
 pub enum CtrlMsg {
     Bypass,
     BypassPedal(String),
     Tuner,
-    Connect(String, String), 
+    Connect(String, String),
     Chain(Vec<CtrlMsg>),
     Disconnect(String),
     Connections,
     Add(String, String),
-    Set(String/*pedal_name*/, String/*conf_name*/, f32/*val*/),
+    Set(PedalName, ConfName, Val),
 }

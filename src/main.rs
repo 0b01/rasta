@@ -1,6 +1,6 @@
 //! Takes 2 audio inputs and outputs them to 2 audio outputs.
 //! All JACK notifications are also printed out.
- 
+
 #![feature(box_syntax)]
 
 extern crate jack;
@@ -13,14 +13,13 @@ use parser::parse_input;
 use effects::{Effect};
 use std::io::{self, Write};
 use jack::{Control, Client, ProcessScope};
-use notifications::Notifications;
 use std::sync::mpsc::channel;
 
 fn main() {
     // Create client
     let (client, _status) =
         jack::Client::new("rasta", jack::ClientOptions::NO_START_SERVER).unwrap();
-    
+
     let sample_rate = client.sample_rate();
     let frame_size = client.buffer_size();
 
@@ -40,6 +39,7 @@ fn main() {
     pedals.add("delay", box effects::delay::Delay::new(sample_rate, frame_size));
     pedals.add("tuner", box effects::tuner::Tuner::new(sample_rate, frame_size));
     pedals.add("aw", box effects::autowah::AutoWah::new(sample_rate, frame_size));
+    pedals.add("trem", box effects::tremelo::Tremelo::new(sample_rate, frame_size));
 
     let (tx, rx) = channel();
 
