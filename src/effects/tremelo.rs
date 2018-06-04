@@ -7,6 +7,8 @@ pub struct Tremelo {
     pub modulo: i16,
     pub counter_limit: i16,
     pub offset: f32,
+    pub alpha_mix: f32,
+    pub beta_mix: f32,
 }
 
 impl Effect for Tremelo {
@@ -15,11 +17,13 @@ impl Effect for Tremelo {
         let depth = 1.;
         Tremelo {
             bypassing: false,
-            counter_limit: 4000,
+            counter_limit: 50,
             depth,
             control: 1,
             modulo: 0,
             offset: 1. - depth,
+            alpha_mix: 0.8,
+            beta_mix: 0.2,
         }
     }
 
@@ -36,7 +40,8 @@ impl Effect for Tremelo {
 
         let m = self.modulo as f32 * self.depth / self.counter_limit as f32;
         for (i, x) in input.iter().enumerate() {
-            let y = (m + self.offset) * x;
+            let y_ = (m + self.offset) * x;
+            let y = self.mixer(*x, y_);
             output_r[i] = y;
             output_l[i] = y;
         }
@@ -63,6 +68,9 @@ impl Effect for Tremelo {
                 if &conf_name == "limit" {
                     self.set_limit(val as i16);
                 }
+                if &conf_name == "mix" {
+                    self.set_mixing(val);
+                }
             },
             _ => (),
         }
@@ -80,9 +88,14 @@ impl Tremelo {
             self.control = 1;
         }
     }
-
     fn set_limit(&mut self, val: i16) {
-        assert!(val >= 100);
         self.counter_limit = val;
+    }
+    fn mixer(&self, x: f32, y: f32) -> f32 {
+        self.alpha_mix * y + self.beta_mix * x
+    }
+    pub fn set_mixing(&mut self, alpha_mix: f32) {
+        self.alpha_mix = alpha_mix;
+        self.beta_mix = 1. - alpha_mix;
     }
 }
